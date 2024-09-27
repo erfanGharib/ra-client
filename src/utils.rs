@@ -23,3 +23,8 @@ pub fn run_with_delay<F>(
     
     func();
 }
+
+pub fn convert_f32_to_u64(f: f32) -> u64 {
+    let rounded = f.round();
+    rounded as u64
+}
