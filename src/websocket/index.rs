@@ -1,41 +1,35 @@
-use tokio::net::TcpStream;
-use futures_util::StreamExt;
-use tokio;
-use futures::stream::{SplitSink, SplitStream};
-use tokio_tungstenite::{
-    tungstenite::protocol::Message, 
-    WebSocketStream,
-    MaybeTlsStream,
-    connect_async
-};
-
 use crate::utils;
-use crate::websocket::events::handle_events::handle_events;
+extern crate ws;
+use ws::{connect, CloseCode, Handler, Handshake, Message, Result, Sender};
+// use super::events::handle_events::handle_events;
 
+struct Client {
+    out: Sender,
+}
 
-pub type TWsSender = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
-pub type TWsReceiver = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
+impl Handler for Client {
+    fn on_open(&mut self, _: Handshake) -> Result<()> {
+        self.out.send("Hello, WebSocket Server!")
+    }
 
-// TODO: read configs from config file
-#[tokio::main]
-pub async fn init_websocket() {
-    let delay_time: u64 = 10; // 10 seconds
-    let url = "ws://localhost:5000";
-    let (ws_stream, _) = 
-        connect_async(url)
-        .await
-        .expect("Failed to connect");
-    let (ws_sender, ws_receiver) = 
-        ws_stream
-        .split();
+    fn on_message(&mut self, msg: Message) -> Result<()> {
+        println!("Client got message: '{}'.", msg);
 
-    println!("Connected to the WebSocket server!");
+        self.out.close(CloseCode::Normal)
+    }
 
-    handle_events(&ws_sender, &ws_receiver).await;
+    fn on_close(&mut self, code: CloseCode, reason: &str) {
+        println!("WebSocket closed with code {:?} and reason: {}", code, reason);
+    }
+}
 
-    // utils::run_with_delay(
-    //     // () -> handle_events(&ws_sender, &ws_receiver), 
-    //     async || -> () { handle_events(&ws_sender, &ws_receiver).await }, 
-    //     delay_time
-    // );
+pub fn init_websocket() {
+    // TODO: put these vars in separate config file
+    let ws_url = "ws://localhost:5000";
+    let delay_time = 100;
+
+    utils::run_with_delay(
+        || connect(ws_url, |out| Client { out }).unwrap(), 
+        delay_time
+    );
 }
